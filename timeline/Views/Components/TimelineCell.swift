@@ -11,6 +11,8 @@ struct TimelineCell: View {
     let photo: TimelinePhoto
     let ageInfo: AgeInfo
     let onTap: () -> Void
+    let onLongPress: () -> Void
+    let isEditMode: Bool
 
     @StateObject private var photoService = PhotoService()
     @State private var image: UIImage?
@@ -19,25 +21,39 @@ struct TimelineCell: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 8) {
                 // 照片缩略图
-                Group {
-                    if let image = image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } else {
-                        ZStack {
-                            Color.gray.opacity(0.2)
-                            ProgressView()
-                                .scaleEffect(0.7)
+                ZStack(alignment: .topTrailing) {
+                    Group {
+                        if let image = image {
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            ZStack {
+                                Color.gray.opacity(0.2)
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
                         }
                     }
+                    .frame(width: Constants.photoThumbnailSize, height: Constants.photoThumbnailSize)
+                    .clipShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Constants.cornerRadius)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+
+                    // 编辑模式下显示删除按钮
+                    if isEditMode {
+                        Button(action: onLongPress) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.white)
+                                .shadow(color: .black.opacity(0.3), radius: 2)
+                        }
+                        .padding(.top, 4)
+                        .padding(.trailing, 4)
+                    }
                 }
-                .frame(width: Constants.photoThumbnailSize, height: Constants.photoThumbnailSize)
-                .clipShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Constants.cornerRadius)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
 
                 // 拍摄时间 - 使用fixedSize确保完整显示
                 Text(DateCalculator.formatShortDate(photo.captureDate))
@@ -50,6 +66,10 @@ struct TimelineCell: View {
             .frame(width: Constants.photoThumbnailSize)  // 确保VStack宽度固定
         }
         .buttonStyle(.plain)
+        .onLongPressGesture {
+            // 长按进入编辑模式
+            onLongPress()
+        }
         .task {
             await loadImage()
         }
@@ -83,9 +103,10 @@ struct TimelineCell: View {
             assetDate: Date(),
             baby: Baby(name: "测试宝宝", birthDate: Date().addingTimeInterval(-30*24*3600))
         ),
-        ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: .fullMoon)
-    ) {
-        print("Tapped")
-    }
+        ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: Milestone(days: 30, title: "满月", icon: "moon.fill")),
+        onTap: { print("Tapped") },
+        onLongPress: { print("Long Pressed") },
+        isEditMode: false
+    )
     .padding()
 }

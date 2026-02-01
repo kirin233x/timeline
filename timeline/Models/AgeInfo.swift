@@ -11,7 +11,7 @@ struct AgeInfo {
     let days: Int
     let months: Int
     let isMilestone: Bool
-    let milestone: KeyMilestone?
+    let milestone: MilestoneProtocol?  // 使用协议支持不同类型的里程碑
 
     var displayText: String {
         if isMilestone, let milestone = milestone {
@@ -37,3 +37,13 @@ struct AgeInfo {
         return "第\(days)天"
     }
 }
+
+// 里程碑协议
+protocol MilestoneProtocol {
+    var days: Int { get }
+    var displayName: String { get }
+    var icon: String { get }
+}
+
+// 扩展KeyMilestone以符合协议
+extension KeyMilestone: MilestoneProtocol {}

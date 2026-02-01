@@ -36,25 +36,16 @@ struct TimelineSectionView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(section.photos) { photo in
-                        ZStack(alignment: .topTrailing) {
-                            TimelineCell(
-                                photo: photo,
-                                ageInfo: section.ageInfo,
-                                onTap: { onPhotoTap(photo) }
-                            )
-
-                            // 编辑模式下显示删除按钮（overlay在右上角）
-                            if isEditMode {
-                                Button(action: { onPhotoTap(photo) }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.white)
-                                        .shadow(color: .black.opacity(0.3), radius: 2)
-                                }
-                                .padding(.top, 4)
-                                .padding(.trailing, 4)
-                            }
-                        }
+                        TimelineCell(
+                            photo: photo,
+                            ageInfo: section.ageInfo,
+                            onTap: { onPhotoTap(photo) },
+                            onLongPress: {
+                                // 长按进入编辑模式并标记删除
+                                onPhotoTap(photo)
+                            },
+                            isEditMode: isEditMode
+                        )
                         .frame(width: Constants.photoThumbnailSize)  // 只限制宽度，让高度自适应
                     }
                 }
@@ -71,13 +62,14 @@ struct TimelineSectionView: View {
         TimelinePhoto(localIdentifier: "1", exifDate: Date(), assetDate: Date(), baby: baby),
         TimelinePhoto(localIdentifier: "2", exifDate: Date(), assetDate: Date(), baby: baby)
     ]
+    let milestone = Milestone(days: 30, title: "满月", icon: "moon.fill")
     let section = TimelineSection(
         date: Date(),
-        ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: .fullMoon),
+        ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: milestone),
         photos: photos
     )
 
-    return TimelineSectionView(section: section, isEditMode: false) { photo in
+    TimelineSectionView(section: section, isEditMode: false) { photo in
         print("Tapped photo: \(photo.localIdentifier)")
     }
 }

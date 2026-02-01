@@ -10,7 +10,8 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var babies: [Baby]
+    @Query private var timelines: [Timeline]
+    @Query private var babies: [Baby]  // 保留Baby以向后兼容
     @State private var isInitialized = false
 
     var body: some View {
@@ -23,17 +24,17 @@ struct ContentView: View {
                         isInitialized = true
                     }
                 }
-        } else if babies.isEmpty {
-            // 没有宝宝档案，显示欢迎页
-            OnboardingView()
+        } else if timelines.isEmpty {
+            // 没有时间线，显示时间线列表（可以创建新时间线）
+            TimelineListView()
         } else {
-            // 已有宝宝档案，显示时间线
-            TimelineView()
+            // 已有时间线，显示时间线列表
+            TimelineListView()
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Baby.self, TimelinePhoto.self], inMemory: true)
+        .modelContainer(for: [Timeline.self, Baby.self, TimelinePhoto.self], inMemory: true)
 }

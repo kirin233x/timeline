@@ -51,9 +51,9 @@ struct AgeBadge: View {
 
 #Preview {
     VStack(spacing: 16) {
-        AgeBadge(ageInfo: AgeInfo(days: 0, months: 0, isMilestone: true, milestone: .birth))
-        AgeBadge(ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: .fullMoon))
-        AgeBadge(ageInfo: AgeInfo(days: 100, months: 3, isMilestone: true, milestone: .day100))
+        AgeBadge(ageInfo: AgeInfo(days: 0, months: 0, isMilestone: true, milestone: Milestone(days: 0, title: "出生", icon: "star.fill")))
+        AgeBadge(ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: Milestone(days: 30, title: "满月", icon: "moon.fill")))
+        AgeBadge(ageInfo: AgeInfo(days: 100, months: 3, isMilestone: true, milestone: Milestone(days: 100, title: "百天", icon: "100.circle.fill")))
         AgeBadge(ageInfo: AgeInfo(days: 15, months: 0, isMilestone: false, milestone: nil))
         AgeBadge(ageInfo: AgeInfo(days: 60, months: 2, isMilestone: false, milestone: nil))
     }

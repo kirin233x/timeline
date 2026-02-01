@@ -12,6 +12,7 @@ import SwiftData
 struct timelineApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
+            Timeline.self,
             Baby.self,
             TimelinePhoto.self,
         ])

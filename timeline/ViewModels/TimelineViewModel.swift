@@ -168,6 +168,109 @@ class TimelineViewModel: ObservableObject {
             print("❌ 添加照片失败: \(error)")
         }
     }
+
+    // 新增：支持Timeline的loadTimeline方法
+    func loadTimeline(timeline: Timeline) {
+        isLoading = true
+        defer { isLoading = false }
+
+        let photos = timeline.photos
+
+        guard !photos.isEmpty else {
+            timelineSections = []
+            return
+        }
+
+        // 按拍摄日期排序
+        let sortedPhotos = photos.sorted { $0.captureDate < $1.captureDate }
+
+        // 构建时间线分组
+        timelineSections = buildSections(from: sortedPhotos, timeline: timeline)
+    }
+
+    // 新增：支持Timeline的addSavedPhotos方法
+    func addSavedPhotos(photos: [SavedPhoto], to timeline: Timeline, context: ModelContext) async {
+        isLoading = true
+        defer { isLoading = false }
+
+        for savedPhoto in photos {
+            let exifData = savedPhoto.exifData
+
+            let timelinePhoto = TimelinePhoto(
+                localIdentifier: savedPhoto.localPath,
+                exifDate: exifData?.dateTimeOriginal,
+                assetDate: Date(),
+                timeline: timeline
+            )
+
+            if let location = exifData?.location {
+                timelinePhoto.latitude = location.coordinate.latitude
+                timelinePhoto.longitude = location.coordinate.longitude
+            }
+
+            timelinePhoto.cameraModel = exifData?.cameraModel
+            timelinePhoto.lensModel = exifData?.lensModel
+
+            context.insert(timelinePhoto)
+        }
+
+        do {
+            try context.save()
+            loadTimeline(timeline: timeline)
+            print("✅ 成功添加 \(photos.count) 张照片到时间线: \(timeline.title)")
+        } catch {
+            errorMessage = "添加照片失败: \(error.localizedDescription)"
+            print("❌ 添加照片失败: \(error)")
+        }
+    }
+
+    // 新增：支持Timeline的buildSections方法
+    private func buildSections(from photos: [TimelinePhoto], timeline: Timeline) -> [TimelineSection] {
+        var sections: [TimelineSection] = []
+        var currentPhotos: [TimelinePhoto] = []
+        var currentDate: Date?
+        var currentAgeInfo: AgeInfo?
+
+        let calendar = Calendar.current
+
+        for photo in photos {
+            let ageInfo = timeline.ageInfo(at: photo.captureDate)
+            let photoDate = photo.captureDate
+
+            // 检查是否需要创建新的分组
+            if let current = currentDate {
+                let daysBetween = calendar.dateComponents([.day], from: current, to: photoDate).day ?? 0
+
+                // 如果日期不同或者年龄信息变化明显，创建新分组
+                if daysBetween > 0 || (currentAgeInfo?.displayText != ageInfo.displayText) {
+                    // 保存当前分组
+                    if !currentPhotos.isEmpty, let date = currentDate, let age = currentAgeInfo {
+                        sections.append(TimelineSection(date: date, ageInfo: age, photos: currentPhotos))
+                    }
+
+                    // 开始新分组
+                    currentPhotos = [photo]
+                    currentDate = photoDate
+                    currentAgeInfo = ageInfo
+                } else {
+                    // 添加到当前分组
+                    currentPhotos.append(photo)
+                }
+            } else {
+                // 第一组
+                currentPhotos = [photo]
+                currentDate = photoDate
+                currentAgeInfo = ageInfo
+            }
+        }
+
+        // 添加最后一组
+        if !currentPhotos.isEmpty, let date = currentDate, let age = currentAgeInfo {
+            sections.append(TimelineSection(date: date, ageInfo: age, photos: currentPhotos))
+        }
+
+        return sections
+    }
 }
 
 struct TimelineSection: Identifiable {
