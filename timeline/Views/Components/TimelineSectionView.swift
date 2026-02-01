@@ -13,63 +13,73 @@ struct TimelineSectionView: View {
     let onPhotoTap: (TimelinePhoto) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 日期和年龄标记
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(DateCalculator.formatShortDate(section.date))
-                        .font(.headline)
-                    if !section.photos.isEmpty {
-                        Text("\(section.photos.count) 张照片")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 12) {
+            // 时间线节点图标（只显示圆点，不要线）
+            timelineDot
+
+            // 右侧内容
+            contentArea
+        }
+        .padding(.leading, 17)  // 让圆点中心对齐垂直线（30+1=31，17+14=31）
+    }
+
+    // MARK: - 时间线节点图标
+    private var timelineDot: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [Color.pink, Color.orange],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 28, height: 28)
+
+            Image(systemName: section.ageInfo.isMilestone ? (section.ageInfo.milestone?.icon ?? "star.fill") : "camera.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 28)
+    }
+
+    // MARK: - 右侧内容区
+    private var contentArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // 年龄标签
+            Text(section.ageInfo.displayText)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .secondarySystemBackground))
+                )
+
+            // 照片区域
+            if section.photos.count == 1 {
+                // 单张照片
+                photoCell(section.photos.first!)
+            } else {
+                // 多张照片 - 横向滚动
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 8) {
+                        ForEach(section.photos) { photo in
+                            photoCell(photo)
+                        }
                     }
                 }
-
-                Spacer()
-
-                AgeBadge(ageInfo: section.ageInfo)
-            }
-            .padding(.horizontal)
-
-            // 照片网格
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(section.photos) { photo in
-                        TimelineCell(
-                            photo: photo,
-                            ageInfo: section.ageInfo,
-                            onTap: { onPhotoTap(photo) },
-                            onLongPress: {
-                                // 长按进入编辑模式并标记删除
-                                onPhotoTap(photo)
-                            },
-                            isEditMode: isEditMode
-                        )
-                        .frame(width: Constants.photoThumbnailSize)  // 只限制宽度，让高度自适应
-                    }
-                }
-                .padding(.horizontal)
             }
         }
-        .padding(.vertical, 8)
     }
-}
 
-#Preview {
-    let baby = Baby(name: "测试宝宝", birthDate: Date().addingTimeInterval(-30*24*3600))
-    let photos = [
-        TimelinePhoto(localIdentifier: "1", exifDate: Date(), assetDate: Date(), baby: baby),
-        TimelinePhoto(localIdentifier: "2", exifDate: Date(), assetDate: Date(), baby: baby)
-    ]
-    let milestone = Milestone(days: 30, title: "满月", icon: "moon.fill")
-    let section = TimelineSection(
-        date: Date(),
-        ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: milestone),
-        photos: photos
-    )
-
-    TimelineSectionView(section: section, isEditMode: false) { photo in
-        print("Tapped photo: \(photo.localIdentifier)")
+    // MARK: - 照片单元格
+    private func photoCell(_ photo: TimelinePhoto) -> some View {
+        TimelineCell(
+            photo: photo,
+            ageInfo: section.ageInfo,
+            onTap: { onPhotoTap(photo) },
+            onLongPress: { onPhotoTap(photo) },
+            isEditMode: isEditMode
+        )
     }
 }

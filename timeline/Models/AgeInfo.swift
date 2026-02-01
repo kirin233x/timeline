@@ -18,8 +18,23 @@ struct AgeInfo {
             return milestone.displayName
         }
 
-        if months > 0 {
-            let remainingDays = days - (months * 30)
+        let years = days / 365
+        let remainingMonths = (days % 365) / 30
+        let remainingDays = days % 30
+
+        if years > 0 {
+            // xx年xx月xx天
+            if remainingMonths > 0 && remainingDays > 0 {
+                return "\(years)年\(remainingMonths)个月\(remainingDays)天"
+            } else if remainingMonths > 0 {
+                return "\(years)年\(remainingMonths)个月"
+            } else if remainingDays > 0 {
+                return "\(years)年\(remainingDays)天"
+            } else {
+                return "\(years)年"
+            }
+        } else if months > 0 {
+            // xx月xx天
             if remainingDays > 0 {
                 return "\(months)个月\(remainingDays)天"
             } else {

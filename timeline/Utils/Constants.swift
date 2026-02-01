@@ -5,27 +5,20 @@
 //  Created by Kirin on 2026/2/1.
 //
 
-import Foundation
 import SwiftUI
 
 struct Constants {
-    // MARK: - UI Constants
-    static let timelineLineWidth: CGFloat = 2
-    static let timelineDotSize: CGFloat = 12
-    static let photoThumbnailSize: CGFloat = 80
-    static let cornerRadius: CGFloat = 12
+    static let photoThumbnailSize: CGFloat = 110
+    static let cornerRadius: CGFloat = 4  // 圆角 4dp
 
-    // MARK: - Date Formats
+    // 日期格式
     static let dateFormatDisplay = "yyyy年MM月dd日 HH:mm"
-    static let dateFormatShort = "yyyy年MM月dd日"
-
-    // MARK: - Animation
-    static let animationDuration: Double = 0.3
+    static let dateFormatShort = "MM月dd日"
 }
 
-struct AppColor {
-    static let primary = Color.blue
-    static let milestone = Color.orange
-    static let background = Color(UIColor.systemBackground)
-    static let secondaryBackground = Color(UIColor.secondarySystemBackground)
+// 颜色定义
+extension Color {
+    static let milestone = Color.pink
 }
+
+typealias AppColor = Color

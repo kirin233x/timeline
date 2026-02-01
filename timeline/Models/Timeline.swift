@@ -39,10 +39,13 @@ final class Timeline {
     // 计算指定日期的年龄/天数
     func ageInfo(at date: Date) -> AgeInfo {
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.day, .month], from: baseDate, to: date)
 
-        let totalDays = components.day ?? 0
-        let months = components.month ?? 0
+        // 计算总天数
+        let components = calendar.dateComponents([.day], from: baseDate, to: date)
+        let totalDays = max(0, components.day ?? 0)
+
+        // 计算月数（总天数 / 30）
+        let months = totalDays / 30
 
         // 检查是否是关键里程碑
         let milestones = getMilestones()

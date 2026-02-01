@@ -156,19 +156,39 @@ struct TimelineView: View {
 
     private var timelineList: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.timelineSections) { section in
-                    TimelineSectionView(section: section, isEditMode: isEditMode) { photo in
-                        if isEditMode {
-                            photoToDelete = photo
-                            showingDeleteAlert = true
-                        } else {
-                            selectedPhoto = photo
+            ZStack(alignment: .topLeading) {
+                // 连续的垂直时间线
+                continuousTimelineLine
+                    .padding(.leading, 30)  // 时间线轴的位置
+
+                // 时间线内容
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    ForEach(Array(viewModel.timelineSections.enumerated()), id: \.element.id) { index, section in
+                        TimelineSectionView(section: section, isEditMode: isEditMode) { photo in
+                            if isEditMode {
+                                photoToDelete = photo
+                                showingDeleteAlert = true
+                            } else {
+                                selectedPhoto = photo
+                            }
                         }
+                        .padding(.bottom, index == viewModel.timelineSections.count - 1 ? 32 : 0)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
             }
-            .padding(.vertical)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    // 连续的垂直线
+    private var continuousTimelineLine: some View {
+        GeometryReader { proxy in
+            Rectangle()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 2)
+                .frame(height: proxy.size.height)
         }
     }
 

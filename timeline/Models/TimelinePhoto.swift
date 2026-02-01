@@ -83,7 +83,7 @@ final class TimelinePhoto {
     func babyAge(birthDate: Date) -> AgeInfo {
         let calendar = Calendar.current
         let components = calendar.dateComponents([.day], from: birthDate, to: captureDate)
-        let totalDays = components.day ?? 0
+        let totalDays = max(0, components.day ?? 0)
 
         let milestone = KeyMilestone(rawValue: totalDays)
         let isMilestone = milestone != nil

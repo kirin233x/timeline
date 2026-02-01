@@ -31,7 +31,7 @@ final class Baby {
     func age(at date: Date) -> AgeInfo {
         let calendar = Calendar.current
         let components = calendar.dateComponents([.day], from: birthDate, to: date)
-        let totalDays = components.day ?? 0
+        let totalDays = max(0, components.day ?? 0)
 
         // 检查是否是关键里程碑
         let milestone = KeyMilestone(rawValue: totalDays)
