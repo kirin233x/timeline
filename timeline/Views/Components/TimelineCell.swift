@@ -12,59 +12,51 @@ struct TimelineCell: View {
     let ageInfo: AgeInfo
     let onTap: () -> Void
     let onLongPress: () -> Void
-    let isEditMode: Bool
 
     @StateObject private var photoService = PhotoService()
     @State private var image: UIImage?
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 8) {
-                ZStack(alignment: .topTrailing) {
-                    // 照片缩略图
-                    Group {
-                        if let image = image {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
-                            ZStack {
-                                Color.gray.opacity(0.2)
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
-                        }
-                    }
-                    .frame(width: Constants.photoThumbnailSize, height: Constants.photoThumbnailSize)
-                    .clipShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
-                    .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-
-                    // 编辑模式下显示删除按钮
-                    if isEditMode {
-                        Button(action: onLongPress) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.3), radius: 2)
-                        }
-                        .padding(.top, 4)
-                        .padding(.trailing, 4)
+        VStack(alignment: .leading, spacing: 8) {
+            // 照片缩略图
+            Group {
+                if let image = image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    ZStack {
+                        Color.gray.opacity(0.2)
+                        ProgressView()
+                            .scaleEffect(0.7)
                     }
                 }
-
-                // 拍摄时间
-                Text(DateCalculator.formatShortDate(photo.captureDate))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(width: Constants.photoThumbnailSize)
+            .frame(width: Constants.photoThumbnailSize, height: Constants.photoThumbnailSize)
+            .clipShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
+            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+
+            // 拍摄时间
+            Text(DateCalculator.formatShortDate(photo.captureDate))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .buttonStyle(.plain)
-        .onLongPressGesture {
-            onLongPress()
+        .frame(width: Constants.photoThumbnailSize)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap()
+        }
+        .contextMenu {
+            Button(action: onTap) {
+                Label("查看", systemImage: "eye")
+            }
+
+            Button(role: .destructive, action: onLongPress) {
+                Label("删除", systemImage: "trash")
+            }
         }
         .task {
             await loadImage()
@@ -91,8 +83,7 @@ struct TimelineCell: View {
             ),
             ageInfo: AgeInfo(days: 30, months: 1, isMilestone: true, milestone: Milestone(days: 30, title: "满月", icon: "moon.fill")),
             onTap: { print("Tapped") },
-            onLongPress: { print("Long Pressed") },
-            isEditMode: false
+            onLongPress: { print("Long Pressed") }
         )
 
         TimelineCell(
@@ -104,8 +95,7 @@ struct TimelineCell: View {
             ),
             ageInfo: AgeInfo(days: 60, months: 2, isMilestone: false, milestone: nil),
             onTap: { print("Tapped") },
-            onLongPress: { print("Long Pressed") },
-            isEditMode: false
+            onLongPress: { print("Long Pressed") }
         )
     }
     .padding()

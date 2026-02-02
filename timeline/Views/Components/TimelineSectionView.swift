@@ -9,8 +9,8 @@ import SwiftUI
 
 struct TimelineSectionView: View {
     let section: TimelineSection
-    let isEditMode: Bool
     let onPhotoTap: (TimelinePhoto) -> Void
+    let onPhotoLongPress: (TimelinePhoto) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -78,8 +78,7 @@ struct TimelineSectionView: View {
             photo: photo,
             ageInfo: section.ageInfo,
             onTap: { onPhotoTap(photo) },
-            onLongPress: { onPhotoTap(photo) },
-            isEditMode: isEditMode
+            onLongPress: { onPhotoLongPress(photo) }
         )
     }
 }

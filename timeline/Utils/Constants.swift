@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct Constants {
-    static let photoThumbnailSize: CGFloat = 110
+    static let photoThumbnailSize: CGFloat = 100
     static let cornerRadius: CGFloat = 4  // 圆角 4dp
 
     // 日期格式

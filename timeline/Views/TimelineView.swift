@@ -22,7 +22,6 @@ struct TimelineView: View {
     @State private var showingDeleteAlert = false
     @State private var showingClearAlert = false
     @State private var photoToDelete: TimelinePhoto?
-    @State private var isEditMode = false
     @State private var isProcessingPhotos = false  // 防止重复处理
 
     // 兼容性：如果没有传入timeline，使用第一个baby
@@ -164,14 +163,16 @@ struct TimelineView: View {
                 // 时间线内容
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(viewModel.timelineSections.enumerated()), id: \.element.id) { index, section in
-                        TimelineSectionView(section: section, isEditMode: isEditMode) { photo in
-                            if isEditMode {
+                        TimelineSectionView(
+                            section: section,
+                            onPhotoTap: { photo in
+                                selectedPhoto = photo
+                            },
+                            onPhotoLongPress: { photo in
                                 photoToDelete = photo
                                 showingDeleteAlert = true
-                            } else {
-                                selectedPhoto = photo
                             }
-                        }
+                        )
                         .padding(.bottom, index == viewModel.timelineSections.count - 1 ? 32 : 0)
                     }
                 }
