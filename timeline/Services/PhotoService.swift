@@ -14,9 +14,13 @@ import Combine
 class PhotoService: ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
 
+    static let shared = PhotoService()
+
     private let imageManager = PHImageManager.default()
     private var imageCache: [String: UIImage] = [:]
-    private let maxCacheSize = 30  // 减少缓存数量，降低内存占用
+    private let maxCacheSize = 100  // 增加缓存数量
+
+    private init() {} // 单例模式
 
     /// 请求相册权限
     func requestAuthorization() async -> Bool {

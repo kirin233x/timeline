@@ -19,7 +19,6 @@ class PhotoDetailViewModel: ObservableObject {
     @Published var locationName: String?
     @Published var isLoading = false
 
-    private let photoService = PhotoService()
     private let locationService = LocationService()
 
     init(photo: TimelinePhoto, baby: Baby?) {
@@ -41,7 +40,7 @@ class PhotoDetailViewModel: ObservableObject {
             fullImage = UIImage(contentsOfFile: fullPath)
         } else {
             // 从 PHAsset 加载（向后兼容）
-            fullImage = await photoService.fetchOriginalImage(for: photo.localIdentifier)
+            fullImage = await PhotoService.shared.fetchOriginalImage(for: photo.localIdentifier)
         }
 
         // 如果照片有 EXIF 数据（已保存），直接使用
@@ -59,7 +58,7 @@ class PhotoDetailViewModel: ObservableObject {
             )
         } else if !photo.isLocalStored {
             // 对于非本地照片，尝试从 PHAsset 提取
-            if let asset = photoService.fetchAsset(for: photo.localIdentifier) {
+            if let asset = PhotoService.shared.fetchAsset(for: photo.localIdentifier) {
                 exifData = EXIFService.extractAllEXIF(from: asset)
             }
         }

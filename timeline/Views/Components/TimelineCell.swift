@@ -13,7 +13,6 @@ struct TimelineCell: View {
     let onTap: () -> Void
     let onLongPress: () -> Void
 
-    @StateObject private var photoService = PhotoService()
     @State private var image: UIImage?
 
     var body: some View {
@@ -64,8 +63,8 @@ struct TimelineCell: View {
     }
 
     private func loadImage() async {
-        let targetSize = CGSize(width: 400, height: 400)
-        image = await photoService.fetchImage(
+        let targetSize = CGSize(width: 200, height: 200)  // 减小缩略图尺寸
+        image = await PhotoService.shared.fetchImage(
             for: photo.localIdentifier,
             size: targetSize
         )

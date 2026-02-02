@@ -21,7 +21,6 @@ class TimelineViewModel: ObservableObject {
     @Published var selectedPhotos: Set<String> = []
     @Published var showPhotoPicker = false
 
-    private let photoService = PhotoService()
     private let exifService = EXIFService.self
 
     func loadTimeline(baby: Baby) {
@@ -48,7 +47,7 @@ class TimelineViewModel: ObservableObject {
         defer { isLoading = false }
 
         for identifier in identifiers {
-            guard let asset = photoService.fetchAsset(for: identifier) else {
+            guard let asset = PhotoService.shared.fetchAsset(for: identifier) else {
                 continue
             }
 
@@ -129,9 +128,30 @@ class TimelineViewModel: ObservableObject {
 
     func deletePhoto(_ photo: TimelinePhoto, context: ModelContext) {
         context.delete(photo)
-        if let baby = baby {
-            loadTimeline(baby: baby)
+
+        // 优化：只更新数据模型，不重新加载整个timeline
+        var updatedSections: [TimelineSection] = []
+
+        for section in timelineSections {
+            if section.photos.contains(where: { $0.id == photo.id }) {
+                // 如果section中只有这一张照片，跳过整个section
+                if section.photos.count > 1 {
+                    // 创建新的section，移除这张照片
+                    let newSection = TimelineSection(
+                        date: section.date,
+                        ageInfo: section.ageInfo,
+                        photos: section.photos.filter { $0.id != photo.id }
+                    )
+                    updatedSections.append(newSection)
+                }
+                // 如果只有一张照片，不添加到新数组中（即删除整个section）
+            } else {
+                // 其他section保持不变
+                updatedSections.append(section)
+            }
         }
+
+        timelineSections = updatedSections
     }
 
     func addSavedPhotos(photos: [SavedPhoto], to baby: Baby, context: ModelContext) async {

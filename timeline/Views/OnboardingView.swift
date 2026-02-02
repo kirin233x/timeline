@@ -12,7 +12,6 @@ import PhotosUI
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = OnboardingViewModel()
-    @StateObject private var photoService = PhotoService()
 
     @State private var avatarPickerItem: PhotosPickerItem?
     @State private var photoPickerItems: [PhotosPickerItem] = []

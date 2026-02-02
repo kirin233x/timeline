@@ -21,8 +21,6 @@ class OnboardingViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showPhotoPicker = false
 
-    private let photoService = PhotoService()
-
     var isValid: Bool {
         !babyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

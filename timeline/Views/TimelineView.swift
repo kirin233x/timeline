@@ -12,7 +12,6 @@ import PhotosUI
 struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = TimelineViewModel()
-    @StateObject private var photoService = PhotoService()
 
     var timeline: Timeline?  // 新增：支持传入Timeline
     @Query private var babies: [Baby]
@@ -235,12 +234,8 @@ struct TimelineView: View {
 
         try? modelContext.save()
 
-        // 重新加载时间线
-        if let timeline = currentTimeline {
-            viewModel.loadTimeline(timeline: timeline)
-        } else if let baby = currentBaby {
-            viewModel.loadTimeline(baby: baby)
-        }
+        // 优化：使用增量更新而不是重新加载整个timeline
+        viewModel.deletePhoto(photo, context: modelContext)
     }
 
     private func emptyTimelineState(for baby: Baby) -> some View {
@@ -298,7 +293,7 @@ struct TimelineView: View {
     }
 
     private func initialize() async {
-        await photoService.requestAuthorization()
+        await PhotoService.shared.requestAuthorization()
 
         if let timeline = currentTimeline {
             viewModel.loadTimeline(timeline: timeline)
