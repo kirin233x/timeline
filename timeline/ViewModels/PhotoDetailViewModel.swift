@@ -30,18 +30,8 @@ class PhotoDetailViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        // 检查是否为本地存储的照片
-        if photo.isLocalStored {
-            // 使用PhotoStorageService获取完整路径（支持相对路径）
-            let fullPath = PhotoStorageService.shared.getFullPath(for: photo.localPath)
-            print("📄 从本地加载照片")
-            print("   相对路径: \(photo.localPath)")
-            print("   完整路径: \(fullPath)")
-            fullImage = UIImage(contentsOfFile: fullPath)
-        } else {
-            // 从 PHAsset 加载（向后兼容）
-            fullImage = await PhotoService.shared.fetchOriginalImage(for: photo.localIdentifier)
-        }
+        // Load image on background thread via PhotoService
+        fullImage = await PhotoService.shared.fetchFullImage(for: photo.localIdentifier)
 
         // 如果照片有 EXIF 数据（已保存），直接使用
         if photo.cameraModel != nil || photo.latitude != nil {

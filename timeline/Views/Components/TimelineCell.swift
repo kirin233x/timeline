@@ -57,17 +57,32 @@ struct TimelineCell: View {
                 Label("删除", systemImage: "trash")
             }
         }
-        .task {
+        // Use task(id:) for automatic cancellation:
+        // - When the view disappears (scrolled off screen), the task is cancelled
+        // - When the photo changes (cell recycled), old task is cancelled and new one starts
+        .task(id: photo.localIdentifier) {
             await loadImage()
         }
     }
 
     private func loadImage() async {
-        let targetSize = CGSize(width: 200, height: 200)  // 减小缩略图尺寸
-        image = await PhotoService.shared.fetchImage(
+        let targetSize = CGSize(width: 200, height: 200)
+        let loadedImage = await PhotoService.shared.fetchImage(
             for: photo.localIdentifier,
             size: targetSize
         )
+
+        // Don't update UI if task was cancelled (cell scrolled away)
+        guard !Task.isCancelled else { return }
+
+        // Fade in only on first load (image was nil)
+        if image == nil {
+            withAnimation(.easeIn(duration: 0.15)) {
+                image = loadedImage
+            }
+        } else {
+            image = loadedImage
+        }
     }
 }
 
