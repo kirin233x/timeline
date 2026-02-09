@@ -60,8 +60,9 @@ struct ImageStorage {
 struct TimelineListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Timeline.createdAt, order: .reverse) private var timelines: [Timeline]
-    
+
     @State private var showingCreateTimeline = false
+    @State private var showingSettings = false
     @State private var timelineToEdit: Timeline?
     @State private var selectedTimelineForNavigation: Timeline?
 
@@ -76,6 +77,14 @@ struct TimelineListView: View {
             }
             .navigationTitle("我的时间线")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingCreateTimeline = true }) {
                         Image(systemName: "plus")
@@ -86,7 +95,9 @@ struct TimelineListView: View {
             .sheet(isPresented: $showingCreateTimeline) {
                 CreateTimelineView()
             }
-            // 使用 item 形式的 sheet 确保编辑视图生命周期正确
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
             .sheet(item: $timelineToEdit) { timeline in
                 CreateTimelineView(timeline: timeline)
             }

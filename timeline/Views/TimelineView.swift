@@ -13,22 +13,25 @@ struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = TimelineViewModel()
 
-    var timeline: Timeline?  // 新增：支持传入Timeline
+    var timeline: Timeline?
     @Query private var babies: [Baby]
+
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var selectedPhoto: TimelinePhoto?
+    @State private var selectedPhotoIndex: Int = 0
+    @State private var selectedSection: TimelineSection?
     @State private var showingPhotoPicker = false
+    @State private var showingPhotoImport = false
     @State private var showingDeleteAlert = false
     @State private var showingClearAlert = false
+    @State private var showingMilestoneEditor = false
     @State private var photoToDelete: TimelinePhoto?
-    @State private var isProcessingPhotos = false  // 防止重复处理
+    @State private var isProcessingPhotos = false
 
-    // 兼容性：如果没有传入timeline，使用第一个baby
     private var currentTimeline: Timeline? {
         if let timeline = timeline {
             return timeline
         }
-        // 向后兼容：如果只有Baby，返回nil（后续需要创建对应的Timeline）
         return nil
     }
 
@@ -44,86 +47,131 @@ struct TimelineView: View {
         !viewModel.timelineSections.isEmpty
     }
 
+    // 获取当前section的所有照片用于浏览
+    private var photosForBrowsing: [TimelinePhoto] {
+        if let section = selectedSection {
+            return section.photos
+        }
+        return viewModel.timelineSections.flatMap { $0.photos }
+    }
+
     var body: some View {
-        NavigationView {
-            ZStack {
-                if let timeline = currentTimeline {
-                    mainContentForTimeline(timeline)
-                } else if let baby = currentBaby {
-                    mainContent(for: baby)
-                } else {
-                    emptyState
-                }
+        ZStack {
+            if let timeline = currentTimeline {
+                mainContentForTimeline(timeline)
+            } else if let baby = currentBaby {
+                mainContent(for: baby)
+            } else {
+                emptyState
             }
-            .navigationTitle(currentTimeline?.title ?? currentBaby?.name ?? "时间线")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if hasContent && sectionsNotEmpty {
-                        Menu {
-                            Button(role: .destructive) {
-                                showingClearAlert = true
+        }
+        .navigationTitle(currentTimeline?.title ?? currentBaby?.name ?? "时间线")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if hasContent {
+                    Menu {
+                        // 添加照片
+                        Section {
+                            Button {
+                                showingPhotoImport = true
                             } label: {
-                                Label("清空时间线", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                        }
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if hasContent {
-                        PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
-                            Image(systemName: "plus")
-                                .fontWeight(.semibold)
-                        }
-                        .onChange(of: selectedPhotoItems) { oldValue, newValue in
-                            // 防止重复处理
-                            guard !isProcessingPhotos,
-                                  !newValue.isEmpty,
-                                  newValue.count != oldValue.count else {
-                                return
+                                Label("批量导入", systemImage: "square.and.arrow.down.on.square")
                             }
 
-                            isProcessingPhotos = true
-                            Task {
-                                await handlePhotoSelection(newValue)
-                                isProcessingPhotos = false
+                            PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
+                                Label("快速添加", systemImage: "plus.circle")
                             }
                         }
+
+                        // 编辑里程碑
+                        if let timeline = currentTimeline {
+                            Section {
+                                Button {
+                                    showingMilestoneEditor = true
+                                } label: {
+                                    Label("编辑里程碑", systemImage: "star.circle")
+                                }
+                            }
+                        }
+
+                        // 清空
+                        if sectionsNotEmpty {
+                            Section {
+                                Button(role: .destructive) {
+                                    showingClearAlert = true
+                                } label: {
+                                    Label("清空时间线", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .fontWeight(.medium)
                     }
                 }
             }
-            .sheet(item: $selectedPhoto) { photo in
-                PhotoDetailView(photo: photo, baby: babies.first)
+        }
+        .onChange(of: selectedPhotoItems) { oldValue, newValue in
+            guard !isProcessingPhotos,
+                  !newValue.isEmpty,
+                  newValue.count != oldValue.count else {
+                return
             }
-            .alert("删除照片", isPresented: .constant(photoToDelete != nil && showingDeleteAlert)) {
-                Button("取消", role: .cancel) {
-                    photoToDelete = nil
-                }
-                Button("删除", role: .destructive) {
-                    if let photo = photoToDelete {
-                        deletePhoto(photo)
-                    }
-                    photoToDelete = nil
-                }
-            } message: {
-                Text("确定要删除这张照片吗？")
+
+            isProcessingPhotos = true
+            Task {
+                await handlePhotoSelection(newValue)
+                isProcessingPhotos = false
             }
-            .alert("清空时间线", isPresented: $showingClearAlert) {
-                Button("取消", role: .cancel) {
-                    showingClearAlert = false
+        }
+        .fullScreenCover(item: $selectedPhoto) { photo in
+            EnhancedPhotoDetailView(
+                photos: photosForBrowsing,
+                initialIndex: photosForBrowsing.firstIndex(where: { $0.id == photo.id }) ?? 0,
+                baby: babies.first,
+                timeline: currentTimeline
+            )
+        }
+        .sheet(isPresented: $showingPhotoImport) {
+            if let timeline = currentTimeline {
+                PhotoImportView(timeline: timeline) {
+                    viewModel.loadTimeline(timeline: timeline)
                 }
-                Button("清空", role: .destructive) {
-                    if let timeline = currentTimeline {
-                        clearTimeline(for: timeline)
-                    } else if let baby = currentBaby {
-                        clearTimeline(for: baby)
-                    }
-                    showingClearAlert = false
-                }
-            } message: {
-                Text("确定要删除所有照片吗？此操作不可恢复。")
             }
+        }
+        .sheet(isPresented: $showingMilestoneEditor) {
+            if let timeline = currentTimeline {
+                MilestoneEditorView(timeline: timeline)
+            }
+        }
+        .alert("删除照片", isPresented: .constant(photoToDelete != nil && showingDeleteAlert)) {
+            Button("取消", role: .cancel) {
+                photoToDelete = nil
+            }
+            Button("删除", role: .destructive) {
+                if let photo = photoToDelete {
+                    deletePhoto(photo)
+                }
+                photoToDelete = nil
+            }
+        } message: {
+            Text("确定要删除这张照片吗？")
+        }
+        .alert("清空时间线", isPresented: $showingClearAlert) {
+            Button("取消", role: .cancel) {
+                showingClearAlert = false
+            }
+            Button("清空", role: .destructive) {
+                if let timeline = currentTimeline {
+                    clearTimeline(for: timeline)
+                } else if let baby = currentBaby {
+                    clearTimeline(for: baby)
+                }
+                showingClearAlert = false
+            }
+        } message: {
+            Text("确定要删除所有照片吗？此操作不可恢复。")
         }
         .task {
             await initialize()
@@ -157,21 +205,27 @@ struct TimelineView: View {
             ZStack(alignment: .topLeading) {
                 // 连续的垂直时间线
                 continuousTimelineLine
-                    .padding(.leading, 30)  // 时间线轴的位置
+                    .padding(.leading, 30)
 
                 // 时间线内容
-                LazyVStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(viewModel.timelineSections.enumerated()), id: \.element.id) { index, section in
                         TimelineSectionView(
                             section: section,
                             onPhotoTap: { photo in
+                                selectedSection = section
                                 selectedPhoto = photo
                             },
                             onPhotoLongPress: { photo in
                                 photoToDelete = photo
                                 showingDeleteAlert = true
+                            },
+                            onPhotoTapWithIndex: { photo, _ in
+                                selectedSection = section
+                                selectedPhoto = photo
                             }
                         )
+                        .staggered(index: index)
                         .padding(.bottom, index == viewModel.timelineSections.count - 1 ? 32 : 0)
                     }
                 }
@@ -180,13 +234,25 @@ struct TimelineView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .refreshable {
+            if let timeline = currentTimeline {
+                viewModel.loadTimeline(timeline: timeline)
+            } else if let baby = currentBaby {
+                viewModel.loadTimeline(baby: baby)
+            }
+        }
     }
 
-    // 连续的垂直线
     private var continuousTimelineLine: some View {
         GeometryReader { proxy in
             Rectangle()
-                .fill(Color.gray.opacity(0.3))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.pink.opacity(0.3), Color.orange.opacity(0.3)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(width: 2)
                 .frame(height: proxy.size.height)
         }
@@ -196,11 +262,9 @@ struct TimelineView: View {
         guard let photos = baby.photos, !photos.isEmpty else { return }
 
         for photo in photos {
-            // 删除本地文件
             if photo.isLocalStored {
                 PhotoStorageService.shared.deletePhoto(at: photo.localPath)
             }
-            // 删除数据库记录
             modelContext.delete(photo)
         }
 
@@ -212,11 +276,9 @@ struct TimelineView: View {
         guard !timeline.photos.isEmpty else { return }
 
         for photo in timeline.photos {
-            // 删除本地文件
             if photo.isLocalStored {
                 PhotoStorageService.shared.deletePhoto(at: photo.localPath)
             }
-            // 删除数据库记录
             modelContext.delete(photo)
         }
 
@@ -225,16 +287,12 @@ struct TimelineView: View {
     }
 
     private func deletePhoto(_ photo: TimelinePhoto) {
-        // 删除本地文件
         if photo.isLocalStored {
             PhotoStorageService.shared.deletePhoto(at: photo.localPath)
         }
-        // 删除数据库记录
         modelContext.delete(photo)
 
         try? modelContext.save()
-
-        // 优化：使用增量更新而不是重新加载整个timeline
         viewModel.deletePhoto(photo, context: modelContext)
     }
 
@@ -242,7 +300,7 @@ struct TimelineView: View {
         ContentUnavailableView {
             Label("还没有照片", systemImage: "photo.on.rectangle.angled")
         } description: {
-            Text("点击右上角 + 号添加宝宝照片，开始记录成长时光")
+            Text("点击右上角菜单添加宝宝照片，开始记录成长时光")
         } actions: {
             Button("添加照片") {
                 showingPhotoPicker = true
@@ -255,19 +313,27 @@ struct TimelineView: View {
             maxSelectionCount: 10,
             matching: .images
         )
-        // onChange已删除，避免与toolbar中的重复
     }
 
     private func emptyTimelineStateForTimeline(_ timeline: Timeline) -> some View {
         ContentUnavailableView {
             Label("还没有照片", systemImage: "photo.on.rectangle.angled")
         } description: {
-            Text("点击右上角 + 号添加照片，开始记录美好时光")
+            Text("点击右上角菜单添加照片，开始记录美好时光")
         } actions: {
-            Button("添加照片") {
-                showingPhotoPicker = true
+            HStack(spacing: 16) {
+                Button {
+                    showingPhotoImport = true
+                } label: {
+                    Label("批量导入", systemImage: "square.and.arrow.down.on.square")
+                }
+                .buttonStyle(.bordered)
+
+                Button("快速添加") {
+                    showingPhotoPicker = true
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .photosPicker(
             isPresented: $showingPhotoPicker,
@@ -275,7 +341,6 @@ struct TimelineView: View {
             maxSelectionCount: 10,
             matching: .images
         )
-        // onChange已删除，避免与toolbar中的重复
     }
 
     private var emptyState: some View {
@@ -303,12 +368,7 @@ struct TimelineView: View {
     }
 
     private func handlePhotoSelection(_ items: [PhotosPickerItem]) async {
-        print("开始处理选择的 \(items.count) 个项目")
-
-        // 并发保存照片到沙盒
         let photos = await PhotoStorageService.shared.savePhotos(from: items)
-
-        print("准备添加 \(photos.count) 张照片到时间线")
 
         if !photos.isEmpty {
             if let timeline = currentTimeline {
@@ -323,6 +383,8 @@ struct TimelineView: View {
 }
 
 #Preview {
-    TimelineView()
-        .modelContainer(for: [Baby.self, TimelinePhoto.self], inMemory: true)
+    NavigationStack {
+        TimelineView()
+    }
+    .modelContainer(for: [Baby.self, TimelinePhoto.self, Timeline.self], inMemory: true)
 }

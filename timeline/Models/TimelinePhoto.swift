@@ -21,6 +21,7 @@ final class TimelinePhoto {
     var longitude: Double?
     var cameraModel: String?
     var lensModel: String?
+    var notes: String?  // 备注信息
 
     @Relationship var baby: Baby?
     @Relationship var timeline: Timeline?  // 新增：支持通用Timeline
@@ -36,7 +37,7 @@ final class TimelinePhoto {
         self.timeline = nil
     }
 
-    // 新增：支持Timeline的初始化
+    // 支持Timeline的初始化
     init(localIdentifier: String, exifDate: Date?, assetDate: Date, timeline: Timeline) {
         self.id = UUID()
         self.localIdentifier = localIdentifier
@@ -46,6 +47,18 @@ final class TimelinePhoto {
         self.addedAt = Date()
         self.baby = nil
         self.timeline = timeline
+    }
+
+    // 通用初始化（用于预览和测试）
+    init(localIdentifier: String, exifDate: Date?, assetDate: Date) {
+        self.id = UUID()
+        self.localIdentifier = localIdentifier
+        self.exifDate = exifDate
+        self.assetDate = assetDate
+        self.manualDate = nil
+        self.addedAt = Date()
+        self.baby = nil
+        self.timeline = nil
     }
 
     /// 获取实际拍摄时间（优先使用手动设置的日期）

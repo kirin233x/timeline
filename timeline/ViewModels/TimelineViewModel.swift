@@ -33,8 +33,8 @@ class TimelineViewModel: ObservableObject {
             return
         }
 
-        // 按拍摄日期排序
-        let sortedPhotos = photos.sorted { $0.captureDate < $1.captureDate }
+        // 按拍摄日期排序 - 从新到旧
+        let sortedPhotos = photos.sorted { $0.captureDate > $1.captureDate }
 
         // 构建时间线分组
         timelineSections = buildSections(from: sortedPhotos, baby: baby)
@@ -93,10 +93,11 @@ class TimelineViewModel: ObservableObject {
 
             // 检查是否需要创建新的分组
             if let current = currentDate {
-                let daysBetween = calendar.dateComponents([.day], from: current, to: photoDate).day ?? 0
+                // 注意：因为是从新到旧排序，所以比较方向反过来
+                let sameDay = calendar.isDate(current, inSameDayAs: photoDate)
 
                 // 如果日期不同或者年龄信息变化明显，创建新分组
-                if daysBetween > 0 || (currentAgeInfo?.displayText != ageInfo.displayText) {
+                if !sameDay || (currentAgeInfo?.displayText != ageInfo.displayText) {
                     // 保存当前分组
                     if !currentPhotos.isEmpty, let date = currentDate, let age = currentAgeInfo {
                         sections.append(TimelineSection(date: date, ageInfo: age, photos: currentPhotos))
@@ -182,14 +183,12 @@ class TimelineViewModel: ObservableObject {
         do {
             try context.save()
             loadTimeline(baby: baby)
-            print("✅ 成功添加 \(photos.count) 张照片")
         } catch {
             errorMessage = "添加照片失败: \(error.localizedDescription)"
-            print("❌ 添加照片失败: \(error)")
         }
     }
 
-    // 新增：支持Timeline的loadTimeline方法
+    // 支持Timeline的loadTimeline方法
     func loadTimeline(timeline: Timeline) {
         isLoading = true
         defer { isLoading = false }
@@ -201,14 +200,14 @@ class TimelineViewModel: ObservableObject {
             return
         }
 
-        // 按拍摄日期排序
-        let sortedPhotos = photos.sorted { $0.captureDate < $1.captureDate }
+        // 按拍摄日期排序 - 从新到旧
+        let sortedPhotos = photos.sorted { $0.captureDate > $1.captureDate }
 
         // 构建时间线分组
         timelineSections = buildSections(from: sortedPhotos, timeline: timeline)
     }
 
-    // 新增：支持Timeline的addSavedPhotos方法
+    // 支持Timeline的addSavedPhotos方法
     func addSavedPhotos(photos: [SavedPhoto], to timeline: Timeline, context: ModelContext) async {
         isLoading = true
         defer { isLoading = false }
@@ -237,14 +236,12 @@ class TimelineViewModel: ObservableObject {
         do {
             try context.save()
             loadTimeline(timeline: timeline)
-            print("✅ 成功添加 \(photos.count) 张照片到时间线: \(timeline.title)")
         } catch {
             errorMessage = "添加照片失败: \(error.localizedDescription)"
-            print("❌ 添加照片失败: \(error)")
         }
     }
 
-    // 新增：支持Timeline的buildSections方法
+    // 支持Timeline的buildSections方法
     private func buildSections(from photos: [TimelinePhoto], timeline: Timeline) -> [TimelineSection] {
         var sections: [TimelineSection] = []
         var currentPhotos: [TimelinePhoto] = []
@@ -259,10 +256,10 @@ class TimelineViewModel: ObservableObject {
 
             // 检查是否需要创建新的分组
             if let current = currentDate {
-                let daysBetween = calendar.dateComponents([.day], from: current, to: photoDate).day ?? 0
+                let sameDay = calendar.isDate(current, inSameDayAs: photoDate)
 
                 // 如果日期不同或者年龄信息变化明显，创建新分组
-                if daysBetween > 0 || (currentAgeInfo?.displayText != ageInfo.displayText) {
+                if !sameDay || (currentAgeInfo?.displayText != ageInfo.displayText) {
                     // 保存当前分组
                     if !currentPhotos.isEmpty, let date = currentDate, let age = currentAgeInfo {
                         sections.append(TimelineSection(date: date, ageInfo: age, photos: currentPhotos))
