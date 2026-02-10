@@ -58,8 +58,8 @@ struct EnhancedPhotoDetailView: View {
 
                 // Photo carousel
                 TabView(selection: $currentIndex) {
-                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                        ZoomablePhotoView(photo: photo)
+                    ForEach(photos.indices, id: \.self) { index in
+                        ZoomablePhotoView(photo: photos[index])
                             .tag(index)
                     }
                 }
