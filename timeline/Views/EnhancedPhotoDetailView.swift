@@ -57,41 +57,7 @@ struct EnhancedPhotoDetailView: View {
                 Color.black.ignoresSafeArea()
 
                 // Photo carousel
-                TabView(selection: $currentIndex) {
-                    ForEach(photos.indices, id: \.self) { index in
-                        ZoomablePhotoView(photo: photos[index])
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .onChange(of: currentIndex) { _, newIndex in
-                    let photo = photos[newIndex]
-                    viewModel.photo = photo
-                    Task {
-                        await viewModel.loadData()
-                    }
-                }
-                .offset(y: dragOffset.height)
-                .scaleEffect(isDragging ? max(0.9, 1 - abs(dragOffset.height) / 1000) : 1)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if abs(value.translation.height) > abs(value.translation.width) {
-                                isDragging = true
-                                dragOffset = value.translation
-                            }
-                        }
-                        .onEnded { value in
-                            isDragging = false
-                            if value.translation.height > 100 {
-                                dismiss()
-                            } else {
-                                withAnimation(.spring(duration: 0.3)) {
-                                    dragOffset = .zero
-                                }
-                            }
-                        }
-                )
+                photoCarousel
 
                 // Top bar
                 if showingControls {
@@ -160,6 +126,46 @@ struct EnhancedPhotoDetailView: View {
                 showingControls.toggle()
             }
         }
+    }
+
+    // MARK: - Photo Carousel
+
+    @ViewBuilder
+    private var photoCarousel: some View {
+        TabView(selection: $currentIndex) {
+            ForEach(0..<photos.count, id: \.self) { index in
+                ZoomablePhotoView(photo: photos[index])
+                    .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .onChange(of: currentIndex) { _, newIndex in
+            viewModel.photo = photos[newIndex]
+            Task {
+                await viewModel.loadData()
+            }
+        }
+        .offset(y: dragOffset.height)
+        .scaleEffect(isDragging ? max(0.9, 1 - abs(dragOffset.height) / 1000) : 1)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if abs(value.translation.height) > abs(value.translation.width) {
+                        isDragging = true
+                        dragOffset = value.translation
+                    }
+                }
+                .onEnded { value in
+                    isDragging = false
+                    if value.translation.height > 100 {
+                        dismiss()
+                    } else {
+                        withAnimation(.spring(duration: 0.3)) {
+                            dragOffset = .zero
+                        }
+                    }
+                }
+        )
     }
 
     // MARK: - Top Bar
