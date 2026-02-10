@@ -240,16 +240,7 @@ struct PhotoDetailView: View {
     }
 }
 
-// 用于分享的简单 Sheet
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
+// ShareSheet is defined in EnhancedPhotoDetailView.swift
 
 #Preview {
     let baby = Baby(name: "测试宝宝", birthDate: Date().addingTimeInterval(-30*24*3600))

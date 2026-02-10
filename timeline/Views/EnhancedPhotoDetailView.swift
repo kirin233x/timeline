@@ -18,13 +18,17 @@ struct EnhancedPhotoDetailView: View {
     let timeline: Timeline?
 
     @State private var currentIndex: Int
-    @State private var showingFullScreen = false
+    @State private var showingControls = true
     @State private var showingEditNotes = false
     @State private var showingEditDate = false
     @State private var showingDeleteAlert = false
     @State private var showingShareSheet = false
     @State private var showingSaveSuccess = false
     @State private var imageToShare: UIImage?
+
+    // Swipe to dismiss
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
 
     @StateObject private var viewModel: PhotoDetailViewModel
 
@@ -43,262 +47,280 @@ struct EnhancedPhotoDetailView: View {
         _viewModel = StateObject(wrappedValue: PhotoDetailViewModel(photo: photo, baby: baby))
     }
 
-    // 单张照片的便捷初始化
     init(photo: TimelinePhoto, baby: Baby? = nil, timeline: Timeline? = nil) {
         self.init(photos: [photo], initialIndex: 0, baby: baby, timeline: timeline)
     }
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                ZStack {
-                    Color.black.ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-                    // 照片轮播
-                    TabView(selection: $currentIndex) {
-                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                            ZoomablePhotoView(photo: photo)
-                                .tag(index)
-                        }
+                // Photo carousel
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                        ZoomablePhotoView(photo: photo)
+                            .tag(index)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .onChange(of: currentIndex) { _, newIndex in
-                        let photo = photos[newIndex]
-                        viewModel.photo = photo
-                        Task {
-                            await viewModel.loadData()
-                        }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .onChange(of: currentIndex) { _, newIndex in
+                    let photo = photos[newIndex]
+                    viewModel.photo = photo
+                    Task {
+                        await viewModel.loadData()
                     }
-
-                    // 底部信息面板
-                    if !showingFullScreen {
-                        VStack {
-                            Spacer()
-                            infoPanel
-                        }
-                    }
-
-                    // 页码指示器
-                    if photos.count > 1 && !showingFullScreen {
-                        VStack {
-                            HStack {
-                                Spacer()
-                                Text("\(currentIndex + 1)/\(photos.count)")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(.ultraThinMaterial)
-                                    .cornerRadius(16)
+                }
+                .offset(y: dragOffset.height)
+                .scaleEffect(isDragging ? max(0.9, 1 - abs(dragOffset.height) / 1000) : 1)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if abs(value.translation.height) > abs(value.translation.width) {
+                                isDragging = true
+                                dragOffset = value.translation
                             }
-                            .padding(.horizontal)
-                            .padding(.top, 8)
+                        }
+                        .onEnded { value in
+                            isDragging = false
+                            if value.translation.height > 100 {
+                                dismiss()
+                            } else {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    dragOffset = .zero
+                                }
+                            }
+                        }
+                )
 
-                            Spacer()
-                        }
+                // Top bar
+                if showingControls {
+                    VStack {
+                        topBar
+                        Spacer()
                     }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar {
-                if !showingFullScreen {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.white)
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                        }
-                    }
 
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Menu {
-                            shareSection
-                            editSection
-                            deleteSection
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.white)
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                        }
+                // Bottom info panel
+                if showingControls {
+                    VStack {
+                        Spacer()
+                        infoPanel
                     }
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
-            }
-            .task {
-                await viewModel.loadData()
-            }
-            .sheet(isPresented: $showingEditNotes) {
-                NotesEditorView(photo: currentPhoto) {
-                    try? modelContext.save()
-                }
-            }
-            .sheet(isPresented: $showingEditDate) {
-                if let baby = baby {
-                    PhotoDateEditView(
-                        photo: currentPhoto,
-                        baby: baby,
-                        onDateChanged: { newDate in
-                            currentPhoto.manualDate = newDate
-                            try? modelContext.save()
-                            showingEditDate = false
-                        },
-                        onCancel: {
-                            showingEditDate = false
-                        }
-                    )
-                }
-            }
-            .sheet(isPresented: $showingShareSheet) {
-                if let image = imageToShare {
-                    ShareSheet(activityItems: [image])
-                }
-            }
-            .alert("删除照片", isPresented: $showingDeleteAlert) {
-                Button("取消", role: .cancel) {}
-                Button("删除", role: .destructive) {
-                    deleteCurrentPhoto()
-                }
-            } message: {
-                Text("确定要删除这张照片吗？此操作不可撤销。")
-            }
-            .overlay {
+
+                // Save success overlay
                 if showingSaveSuccess {
                     saveSuccessOverlay
                 }
             }
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showingFullScreen.toggle()
-                }
+        }
+        .statusBarHidden(!showingControls)
+        .task {
+            await viewModel.loadData()
+        }
+        .sheet(isPresented: $showingEditNotes) {
+            NotesEditorView(photo: currentPhoto) {
+                try? modelContext.save()
             }
         }
+        .sheet(isPresented: $showingEditDate) {
+            if let baby = baby {
+                PhotoDateEditView(
+                    photo: currentPhoto,
+                    baby: baby,
+                    onDateChanged: { newDate in
+                        currentPhoto.manualDate = newDate
+                        try? modelContext.save()
+                        showingEditDate = false
+                    },
+                    onCancel: {
+                        showingEditDate = false
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let image = imageToShare {
+                ShareSheet(activityItems: [image])
+            }
+        }
+        .alert("删除照片", isPresented: $showingDeleteAlert) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                deleteCurrentPhoto()
+            }
+        } message: {
+            Text("确定要删除这张照片吗？此操作不可撤销。")
+        }
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showingControls.toggle()
+            }
+        }
+    }
+
+    // MARK: - Top Bar
+
+    private var topBar: some View {
+        HStack {
+            // Close button
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+            }
+
+            Spacer()
+
+            // Page indicator
+            if photos.count > 1 {
+                Text("\(currentIndex + 1) / \(photos.count)")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Capsule())
+            }
+
+            Spacer()
+
+            // Menu button
+            Menu {
+                shareSection
+                editSection
+                deleteSection
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     // MARK: - Info Panel
 
     private var infoPanel: some View {
         VStack(spacing: 0) {
-            // 拖动指示器
+            // Drag indicator
             Capsule()
-                .fill(Color.white.opacity(0.5))
-                .frame(width: 36, height: 4)
-                .padding(.top, 8)
+                .fill(Color.white.opacity(0.4))
+                .frame(width: 40, height: 4)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // 备注
-                    if let notes = currentPhoto.notes, !notes.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "note.text")
-                                    .foregroundStyle(.yellow)
-                                Text("备注")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                            }
+            VStack(alignment: .leading, spacing: 12) {
+                // Notes
+                if let notes = currentPhoto.notes, !notes.isEmpty {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "note.text")
+                            .foregroundStyle(.yellow)
+                            .font(.system(size: 14))
+
+                        Text(notes)
+                            .font(.system(size: 14))
                             .foregroundStyle(.white)
-
-                            Text(notes)
-                                .font(.body)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                        .padding(.horizontal)
+                            .lineLimit(3)
                     }
+                    .padding(.horizontal, 16)
+                }
 
-                    // 日期与年龄
-                    HStack(spacing: 24) {
-                        // 日期
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "calendar")
-                                Text("拍摄时间")
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.white.opacity(0.7))
-
-                            Text(viewModel.formattedDate)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.white)
-
-                            // 日期来源
-                            dateSourceBadge
-                        }
-
-                        Spacer()
-
-                        // 年龄
-                        if let ageInfo = viewModel.ageInfo {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Text("年龄")
-                                        .font(.caption)
-                                    Image(systemName: "heart.fill")
-                                }
-                                .foregroundStyle(.white.opacity(0.7))
-
-                                Text(ageInfo.displayText)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(ageInfo.isMilestone ? .pink : .white)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    // 位置
-                    if let locationName = viewModel.locationName {
-                        HStack(spacing: 8) {
-                            Image(systemName: "location.fill")
-                                .foregroundStyle(.red)
-
-                            Text(locationName)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    // EXIF 简要信息
-                    if let exif = viewModel.exifData, exif.cameraModel != nil {
-                        HStack(spacing: 16) {
-                            if let camera = exif.cameraModel {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "camera.fill")
-                                        .font(.caption)
-                                    Text(camera)
-                                        .font(.caption)
-                                }
-                            }
-
-                            if let lens = exif.lensModel {
-                                Text(lens)
-                                    .font(.caption)
-                            }
+                // Date and age
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 12))
+                            Text("拍摄时间")
+                                .font(.system(size: 12))
                         }
                         .foregroundStyle(.white.opacity(0.6))
-                        .padding(.horizontal)
+
+                        Text(viewModel.formattedDate)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white)
+
+                        dateSourceBadge
+                    }
+
+                    Spacer()
+
+                    if let ageInfo = viewModel.ageInfo {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("年龄")
+                                    .font(.system(size: 12))
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundStyle(.white.opacity(0.6))
+
+                            Text(ageInfo.displayText)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(ageInfo.isMilestone ? .pink : .white)
+                        }
                     }
                 }
-                .padding(.vertical, 16)
+                .padding(.horizontal, 16)
+
+                // Location
+                if let locationName = viewModel.locationName {
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.fill")
+                            .foregroundStyle(.red)
+                            .font(.system(size: 12))
+
+                        Text(locationName)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                // Camera info
+                if let exif = viewModel.exifData, exif.cameraModel != nil {
+                    HStack(spacing: 12) {
+                        if let camera = exif.cameraModel {
+                            HStack(spacing: 4) {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 10))
+                                Text(camera)
+                                    .font(.system(size: 11))
+                            }
+                        }
+
+                        if let lens = exif.lensModel {
+                            Text(lens)
+                                .font(.system(size: 11))
+                        }
+                    }
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.horizontal, 16)
+                }
             }
-            .frame(maxHeight: 200)
+            .padding(.bottom, 20)
         }
         .background(
             LinearGradient(
-                colors: [.clear, .black.opacity(0.8)],
+                colors: [.clear, .black.opacity(0.7), .black.opacity(0.85)],
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .ignoresSafeArea()
         )
     }
 
@@ -306,7 +328,7 @@ struct EnhancedPhotoDetailView: View {
         Group {
             if currentPhoto.hasManualDate {
                 Text("手动设置")
-                    .font(.caption2)
+                    .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.orange)
@@ -314,7 +336,7 @@ struct EnhancedPhotoDetailView: View {
                     .cornerRadius(4)
             } else if currentPhoto.exifDate != nil {
                 Text("EXIF")
-                    .font(.caption2)
+                    .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.green)
@@ -383,16 +405,18 @@ struct EnhancedPhotoDetailView: View {
     private var saveSuccessOverlay: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 50))
+                .font(.system(size: 48))
                 .foregroundStyle(.green)
 
             Text("已保存到相册")
-                .font(.headline)
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white)
         }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.75))
+        )
         .transition(.scale.combined(with: .opacity))
     }
 
@@ -411,13 +435,13 @@ struct EnhancedPhotoDetailView: View {
             } completionHandler: { success, _ in
                 if success {
                     Task { @MainActor in
-                        withAnimation {
+                        withAnimation(.spring(duration: 0.3)) {
                             showingSaveSuccess = true
                         }
 
                         try? await Task.sleep(for: .seconds(1.5))
 
-                        withAnimation {
+                        withAnimation(.easeOut(duration: 0.2)) {
                             showingSaveSuccess = false
                         }
                     }
@@ -427,20 +451,16 @@ struct EnhancedPhotoDetailView: View {
     }
 
     private func deleteCurrentPhoto() {
-        // 删除本地文件
         if currentPhoto.isLocalStored {
             PhotoStorageService.shared.deletePhoto(at: currentPhoto.localPath)
         }
 
-        // 删除数据库记录
         modelContext.delete(currentPhoto)
         try? modelContext.save()
 
-        // 如果删除后没有照片了，关闭视图
         if photos.count <= 1 {
             dismiss()
         } else {
-            // 调整索引
             if currentIndex >= photos.count - 1 {
                 currentIndex = max(0, photos.count - 2)
             }
@@ -478,7 +498,7 @@ struct ZoomablePhotoView: View {
                                 .onEnded { _ in
                                     lastScale = 1.0
                                     if scale <= 1 {
-                                        withAnimation(.spring()) {
+                                        withAnimation(.spring(duration: 0.3)) {
                                             scale = 1
                                             offset = .zero
                                         }
@@ -500,7 +520,7 @@ struct ZoomablePhotoView: View {
                                 }
                         )
                         .onTapGesture(count: 2) {
-                            withAnimation(.spring()) {
+                            withAnimation(.spring(duration: 0.3)) {
                                 if scale > 1 {
                                     scale = 1
                                     offset = .zero
@@ -543,7 +563,6 @@ struct NotesEditorView: View {
                     .scrollContentBackground(.hidden)
                     .background(Color(uiColor: .systemGroupedBackground))
 
-                // 字数统计
                 HStack {
                     Spacer()
                     Text("\(notes.count) / 500")

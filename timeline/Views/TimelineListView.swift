@@ -3,51 +3,43 @@ import SwiftData
 import PhotosUI
 import UIKit
 
-// MARK: - 工具类：图片存储管理
-// 负责将头像图片保存到沙盒的 Documents/TimelineIcons 目录
+// MARK: - Image Storage Helper
 struct ImageStorage {
     static let shared = ImageStorage()
     private let fileManager = FileManager.default
-    
+
     private var iconsDirectory: URL {
         let paths = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
         let documentsDirectory = paths[0]
         let iconsDir = documentsDirectory.appendingPathComponent("TimelineIcons")
-        
+
         if !fileManager.fileExists(atPath: iconsDir.path) {
             try? fileManager.createDirectory(at: iconsDir, withIntermediateDirectories: true)
         }
         return iconsDir
     }
-    
-    // 保存图片，返回带 local: 前缀的文件名
+
     func saveImage(_ image: UIImage) -> String? {
-        // 使用 UUID 确保每次文件名都不同，这对于强制刷新 UI 至关重要
         let fileName = UUID().uuidString + ".jpg"
         let fileURL = iconsDirectory.appendingPathComponent(fileName)
-        
-        // 压缩图片以减少空间占用
+
         guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
-        
+
         do {
             try data.write(to: fileURL)
-            print("✅ 图片已保存到: \(fileName)")
             return "local:" + fileName
         } catch {
-            print("❌ 图片保存失败: \(error)")
             return nil
         }
     }
-    
-    // 读取图片
+
     func loadImage(fileName: String) -> UIImage? {
         let cleanName = fileName.replacingOccurrences(of: "local:", with: "")
         let fileURL = iconsDirectory.appendingPathComponent(cleanName)
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return UIImage(data: data)
     }
-    
-    // 删除图片
+
     func deleteImage(fileName: String) {
         guard fileName.hasPrefix("local:") else { return }
         let cleanName = fileName.replacingOccurrences(of: "local:", with: "")
@@ -116,8 +108,6 @@ struct TimelineListView: View {
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
-                // 🔥 关键修改：添加 .id(timeline.icon)
-                // 这强制 SwiftUI 在图标路径改变时重新渲染整个卡片，从而重新加载本地图片
                 .id(timeline.icon)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
@@ -140,22 +130,22 @@ struct TimelineListView: View {
     }
 
     private func deleteTimeline(_ timeline: Timeline) {
-        // 1. 删除关联的照片（这里假设你有 PhotoStorageService，如果没有请注释掉）
+        // 1. Delete associated photos and their local files
         for photo in timeline.photos {
             if photo.isLocalStored {
-                // PhotoStorageService.shared.deletePhoto(at: photo.localPath)
+                PhotoStorageService.shared.deletePhoto(at: photo.localPath)
             }
             modelContext.delete(photo)
         }
-        
-        // 2. 如果图标是本地图片，删除它
+
+        // 2. Delete icon if it's a local image
         if timeline.icon.hasPrefix("local:") {
             ImageStorage.shared.deleteImage(fileName: timeline.icon)
         }
-        
-        // 3. 删除时间线对象
+
+        // 3. Delete the timeline object
         modelContext.delete(timeline)
-        
+
         try? modelContext.save()
     }
 
@@ -188,7 +178,13 @@ struct TimelineListView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(Color.blue)
+                    .background(
+                        LinearGradient(
+                            colors: [.pink, .orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .cornerRadius(12)
             }
         }
@@ -200,81 +196,92 @@ struct TimelineListView: View {
 struct TimelineCardView: View {
     let timeline: Timeline
     var onTap: () -> Void
-    
-    // 增加一个状态来存储加载后的图片，避免 body 重复读取 IO
+
     @State private var loadedImage: UIImage?
+
+    private var themeColor: Color {
+        Color(hex: timeline.color)
+    }
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 16) {
+                // Icon with theme color
                 ZStack {
                     Circle()
-                        .fill(Color(hex: timeline.color))
-                        .frame(width: 60, height: 60)
+                        .fill(themeColor)
+                        .frame(width: 56, height: 56)
 
-                    // 图标显示逻辑
-                    Group {
-                        if timeline.icon.hasPrefix("local:") {
-                            if let image = loadedImage {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(Circle())
-                            } else {
-                                // 加载占位或 loading
-                                ProgressView()
-                                    .tint(.white)
-                            }
+                    if timeline.icon.hasPrefix("local:") {
+                        if let image = loadedImage {
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 56, height: 56)
+                                .clipShape(Circle())
                         } else {
-                            Image(systemName: timeline.icon)
-                                .font(.title2)
-                                .foregroundStyle(.white)
+                            ProgressView()
+                                .tint(.white)
                         }
+                    } else {
+                        Image(systemName: timeline.icon)
+                            .font(.system(size: 22))
+                            .foregroundStyle(.white)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(timeline.title)
-                        .font(.headline)
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.primary)
 
-                    Text("\(timeline.photos.count) 张照片")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Label("\(timeline.photos.count)", systemImage: "photo")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    Text("起始日期: \(DateCalculator.formatShortDate(timeline.baseDate))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        Text("·")
+                            .foregroundStyle(.secondary)
+
+                        Text(DateCalculator.formatShortDate(timeline.baseDate))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
 
+                // Theme color indicator
+                Circle()
+                    .fill(themeColor)
+                    .frame(width: 8, height: 8)
+
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color(uiColor: .systemBackground))
-                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .shadow(color: themeColor.opacity(0.15), radius: 8, x: 0, y: 4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(themeColor.opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        // 视图加载时尝试读取图片
         .onAppear {
             loadImageIfNeeded()
         }
-        // 当 icon 属性变化时（通过 id 刷新）再次读取
         .onChange(of: timeline.icon) { _, _ in
             loadImageIfNeeded()
         }
     }
-    
+
     private func loadImageIfNeeded() {
         if timeline.icon.hasPrefix("local:") {
-            // 异步加载以免卡顿列表滑动
             DispatchQueue.global(qos: .userInitiated).async {
                 let image = ImageStorage.shared.loadImage(fileName: timeline.icon)
                 DispatchQueue.main.async {
@@ -301,12 +308,19 @@ struct CreateTimelineView: View {
     @State private var customIconImage: UIImage?
     @State private var showingIconPicker = false
     @State private var errorMessage: String?
-    
-    // 标记是否是新选择的图片
     @State private var isNewImageSelected = false
 
-    let icons = ["heart.fill", "star.fill", "moon.fill", "sun.max.fill", "flame.fill", "leaf.fill", "droplet.fill", "wind"]
-    let colors = ["#FF69B4", "#FF6347", "#FFD700", "#32CD32", "#00CED1", "#4169E1", "#9370DB", "#FF1493"]
+    let icons = [
+        "heart.fill", "star.fill", "moon.fill", "sun.max.fill",
+        "flame.fill", "leaf.fill", "camera.fill", "gift.fill",
+        "graduationcap.fill", "airplane", "car.fill", "house.fill"
+    ]
+
+    let colors = [
+        "#FF69B4", "#FF6347", "#FFD700", "#32CD32",
+        "#00CED1", "#4169E1", "#9370DB", "#FF1493",
+        "#20B2AA", "#778899", "#8B4513", "#2F4F4F"
+    ]
 
     var isEditMode: Bool {
         timeline != nil
@@ -318,15 +332,14 @@ struct CreateTimelineView: View {
 
     init(timeline: Timeline? = nil) {
         self.timeline = timeline
-        
+
         if let timeline = timeline {
             _title = State(initialValue: timeline.title)
             _baseDate = State(initialValue: timeline.baseDate)
             _selectedColor = State(initialValue: timeline.color)
-            
+
             if timeline.icon.hasPrefix("local:") {
                 _selectedIcon = State(initialValue: nil)
-                // 同步加载编辑时的预览图
                 if let image = ImageStorage.shared.loadImage(fileName: timeline.icon) {
                     _customIconImage = State(initialValue: image)
                 }
@@ -346,43 +359,74 @@ struct CreateTimelineView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 32) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("时间线标题").font(.headline)
-                        TextField("例如：宝宝成长、恋爱纪念日", text: $title)
-                            .textFieldStyle(.roundedBorder)
+                VStack(spacing: 28) {
+                    // Preview card
+                    previewCard
+
+                    // Title input
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("时间线标题")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+
+                        TextField("输入标题...", text: $title)
+                            .font(.system(size: 17))
+                            .padding(14)
+                            .background(Color(uiColor: .tertiarySystemBackground))
+                            .cornerRadius(12)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("起始日期").font(.headline)
-                        DatePicker("", selection: $baseDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
+                    // Date picker
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("起始日期")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(Color(hex: selectedColor))
+
+                            DatePicker("", selection: $baseDate, displayedComponents: .date)
+                                .labelsHidden()
+
+                            Spacer()
+                        }
+                        .padding(14)
+                        .background(Color(uiColor: .tertiarySystemBackground))
+                        .cornerRadius(12)
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("选择图标").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 12) {
+                    // Icon selection
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("选择图标")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
+                            // Custom photo button
                             Button(action: { showingIconPicker = true }) {
                                 ZStack {
-                                    Circle()
-                                        .fill(customIconImage != nil ? Color.blue.opacity(0.2) : Color.gray.opacity(0.1))
-                                        .frame(width: 50, height: 50)
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(customIconImage != nil ? Color(hex: selectedColor).opacity(0.15) : Color(uiColor: .tertiarySystemBackground))
+                                        .frame(height: 52)
+
                                     if let image = customIconImage {
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: 40, height: 40)
+                                            .frame(width: 36, height: 36)
                                             .clipShape(Circle())
                                     } else {
-                                        VStack(spacing: 2) {
-                                            Image(systemName: "photo.on.rectangle.angled").font(.title3)
-                                            Text("相册").font(.caption2)
-                                        }
-                                        .foregroundStyle(.secondary)
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                             }
+
                             ForEach(icons, id: \.self) { icon in
                                 Button(action: {
                                     selectedIcon = icon
@@ -390,34 +434,42 @@ struct CreateTimelineView: View {
                                     isNewImageSelected = false
                                 }) {
                                     ZStack {
-                                        Circle()
-                                            .fill(selectedIcon == icon ? Color.blue.opacity(0.2) : Color.gray.opacity(0.1))
-                                            .frame(width: 50, height: 50)
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(selectedIcon == icon ? Color(hex: selectedColor).opacity(0.15) : Color(uiColor: .tertiarySystemBackground))
+                                            .frame(height: 52)
+
                                         Image(systemName: icon)
-                                            .font(.title3)
-                                            .foregroundStyle(selectedIcon == icon ? .blue : .primary)
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(selectedIcon == icon ? Color(hex: selectedColor) : .secondary)
                                     }
                                 }
                             }
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("主题颜色").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 50))], spacing: 12) {
+                    // Color selection
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("主题颜色")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                             ForEach(colors, id: \.self) { color in
                                 Button(action: { selectedColor = color }) {
                                     ZStack {
                                         Circle()
                                             .fill(Color(hex: color))
-                                            .frame(width: 40, height: 40)
-                                            .overlay(Circle().stroke(Color(uiColor: .separator), lineWidth: 1))
+                                            .frame(width: 44, height: 44)
+
                                         if selectedColor == color {
+                                            Circle()
+                                                .stroke(Color(uiColor: .systemBackground), lineWidth: 3)
+                                                .frame(width: 38, height: 38)
+
                                             Image(systemName: "checkmark")
-                                                .font(.caption)
-                                                .fontWeight(.bold)
+                                                .font(.system(size: 14, weight: .bold))
                                                 .foregroundStyle(.white)
-                                                .shadow(color: .black.opacity(0.3), radius: 1)
                                         }
                                     }
                                 }
@@ -427,29 +479,36 @@ struct CreateTimelineView: View {
 
                     if let errorMessage = errorMessage {
                         HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                            Text(errorMessage).font(.caption).foregroundStyle(.red)
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.red)
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
                         }
                         .padding()
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(8)
                     }
 
+                    // Save button
                     Button(action: saveTimeline) {
                         Text(isEditMode ? "保存修改" : "创建时间线")
-                            .fontWeight(.semibold)
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(isValid ? Color.blue : Color.gray)
-                            .cornerRadius(12)
+                            .padding(.vertical, 16)
+                            .background(
+                                isValid ? Color(hex: selectedColor) : Color.gray
+                            )
+                            .cornerRadius(14)
                     }
                     .disabled(!isValid)
-                    Spacer()
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(isEditMode ? "编辑时间线" : "创建时间线")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -473,12 +532,58 @@ struct CreateTimelineView: View {
         )
     }
 
+    // MARK: - Preview Card
+
+    private var previewCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: selectedColor))
+                    .frame(width: 52, height: 52)
+
+                if let image = customIconImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 52, height: 52)
+                        .clipShape(Circle())
+                } else if let icon = selectedIcon {
+                    Image(systemName: icon)
+                        .font(.system(size: 22))
+                        .foregroundStyle(.white)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title.isEmpty ? "时间线标题" : title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(title.isEmpty ? .secondary : .primary)
+
+                Text(DateCalculator.formatShortDate(baseDate))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: Color(hex: selectedColor).opacity(0.2), radius: 8, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: selectedColor).opacity(0.3), lineWidth: 1)
+        )
+    }
+
     private func loadCustomIcon(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else { return }
         customIconImage = cropToSquare(image)
         selectedIcon = nil
-        isNewImageSelected = true // 标记选择了新图片
+        isNewImageSelected = true
     }
 
     private func cropToSquare(_ image: UIImage) -> UIImage {
@@ -494,18 +599,10 @@ struct CreateTimelineView: View {
 
     private func saveTimeline() {
         guard isValid else { return }
-        
+
         var finalIcon: String
-        
-        // 逻辑：
-        // 1. 如果有 customIconImage，且是新选择的 -> 保存新文件
-        // 2. 如果有 customIconImage，但不是新选择的（编辑模式原有的）-> 保持原路径（或者为了强制刷新，也可以重新保存）
-        // 3. 如果 selectedIcon 不为空 -> 使用系统图标
-        
+
         if let customImage = customIconImage {
-            // 这里为了简单且确保刷新的稳定性，只要是自定义图片，我们都保存一份新的（新的UUID）
-            // 这样 timeline.icon 字符串会变化，从而触发列表的 .id() 刷新
-            // 虽然会增加一点点IO，但能保证UI 100% 刷新
             if let localPath = ImageStorage.shared.saveImage(customImage) {
                 finalIcon = localPath
             } else {
@@ -514,19 +611,18 @@ struct CreateTimelineView: View {
         } else {
             finalIcon = selectedIcon ?? "heart.fill"
         }
-        
+
         if let timeline = timeline {
             timeline.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
             timeline.baseDate = baseDate
-            
-            // 如果图标确实变了（因为我们用了 UUID，所以图片只要保存就会变），删除旧图片
+
             if timeline.icon.hasPrefix("local:") && timeline.icon != finalIcon {
                 ImageStorage.shared.deleteImage(fileName: timeline.icon)
             }
-            
+
             timeline.icon = finalIcon
             timeline.color = selectedColor
-            
+
             try? modelContext.save()
             dismiss()
         } else {
@@ -543,14 +639,16 @@ struct CreateTimelineView: View {
     }
 }
 
-// MARK: - Helper Extensions
+// MARK: - Timeline Detail View
 struct TimelineDetailView: View {
     let timeline: Timeline
+
     var body: some View {
         TimelineView(timeline: timeline)
     }
 }
 
+// MARK: - Color Extension
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

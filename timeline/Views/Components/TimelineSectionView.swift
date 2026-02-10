@@ -12,6 +12,7 @@ struct TimelineSectionView: View {
     let onPhotoTap: (TimelinePhoto) -> Void
     let onPhotoLongPress: (TimelinePhoto) -> Void
     var onPhotoTapWithIndex: ((TimelinePhoto, Int) -> Void)?
+    var themeColor: Color = .pink
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -28,13 +29,9 @@ struct TimelineSectionView: View {
     private var timelineDot: some View {
         ZStack {
             Circle()
-                .fill(LinearGradient(
-                    colors: [Color.pink, Color.orange],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+                .fill(themeColor)
                 .frame(width: 28, height: 28)
-                .shadow(color: .pink.opacity(0.3), radius: 4, x: 0, y: 2)
+                .shadow(color: themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
 
             Image(systemName: section.ageInfo.isMilestone ? (section.ageInfo.milestone?.icon ?? "star.fill") : "camera.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -50,7 +47,7 @@ struct TimelineSectionView: View {
             HStack(spacing: 8) {
                 Text(section.ageInfo.displayText)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(section.ageInfo.isMilestone ? .pink : .primary)
+                    .foregroundStyle(section.ageInfo.isMilestone ? themeColor : .primary)
 
                 if section.ageInfo.isMilestone {
                     Text("里程碑")
@@ -61,11 +58,7 @@ struct TimelineSectionView: View {
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(LinearGradient(
-                                    colors: [.pink, .orange],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
+                                .fill(themeColor)
                         )
                 }
 

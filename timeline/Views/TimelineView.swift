@@ -55,6 +55,14 @@ struct TimelineView: View {
         return viewModel.timelineSections.flatMap { $0.photos }
     }
 
+    // 主题颜色
+    private var themeColor: Color {
+        if let timeline = currentTimeline {
+            return Color(hex: timeline.color)
+        }
+        return .pink
+    }
+
     var body: some View {
         ZStack {
             if let timeline = currentTimeline {
@@ -223,7 +231,8 @@ struct TimelineView: View {
                             onPhotoTapWithIndex: { photo, _ in
                                 selectedSection = section
                                 selectedPhoto = photo
-                            }
+                            },
+                            themeColor: themeColor
                         )
                         .staggered(index: index)
                         .padding(.bottom, index == viewModel.timelineSections.count - 1 ? 32 : 0)
@@ -248,7 +257,7 @@ struct TimelineView: View {
             Rectangle()
                 .fill(
                     LinearGradient(
-                        colors: [Color.pink.opacity(0.3), Color.orange.opacity(0.3)],
+                        colors: [themeColor.opacity(0.4), themeColor.opacity(0.2)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -318,6 +327,7 @@ struct TimelineView: View {
     private func emptyTimelineStateForTimeline(_ timeline: Timeline) -> some View {
         ContentUnavailableView {
             Label("还没有照片", systemImage: "photo.on.rectangle.angled")
+                .foregroundStyle(themeColor)
         } description: {
             Text("点击右上角菜单添加照片，开始记录美好时光")
         } actions: {
@@ -328,11 +338,13 @@ struct TimelineView: View {
                     Label("批量导入", systemImage: "square.and.arrow.down.on.square")
                 }
                 .buttonStyle(.bordered)
+                .tint(themeColor)
 
                 Button("快速添加") {
                     showingPhotoPicker = true
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(themeColor)
             }
         }
         .photosPicker(
